@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33627.172
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "F4PeltierCooler", "F4PeltierCooler.vcxproj", "{9530E61F-15F9-4686-B705-088AADF78D87}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|VisualGDB = Debug|VisualGDB
+		Release|VisualGDB = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9530E61F-15F9-4686-B705-088AADF78D87}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
+		{9530E61F-15F9-4686-B705-088AADF78D87}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
+		{9530E61F-15F9-4686-B705-088AADF78D87}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
+		{9530E61F-15F9-4686-B705-088AADF78D87}.Release|VisualGDB.Build.0 = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {384A712B-69FE-45E9-9EC5-DBCF05EFB47D}
+	EndGlobalSection
+EndGlobal
