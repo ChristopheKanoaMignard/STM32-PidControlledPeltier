@@ -13,16 +13,18 @@ using System.Configuration;
 using System.Text.RegularExpressions;
 using System.Collections.ObjectModel;
 
-namespace ImuTest01NS {
+namespace PidControlledPeltierNS {
 
-    class ImuTest01Comms {
+    class PidControlledPeltierComms
+    {
         private System.IO.Ports.SerialPort thePort;
         private string portName = "";
         public static int tiltPoints = 4096;
 
-        public class Comm_Exception : Exception {
+        public class Comm_Exception : Exception
+        {
             public Comm_Exception() { }
-            public Comm_Exception( string message ) : base( message ) { }
+            public Comm_Exception(string message) : base(message) { }
         };
 
         public enum REGS
@@ -32,20 +34,25 @@ namespace ImuTest01NS {
             RegTick,                     //2, lower 16 bits of the 1mS system timer
             RegAdcTemp,                  //3, read temperature sensor internal to MCU, 0.76V @25degC + 2.5mV/degC, temp = 25+(nAdc*3.3/4095-0.76)/0.025, 1022 => 27.5degC
             RegAdcRef,                   //4, MCU internal reference voltage (1.2Vnom), should be around 1.2/3.3*4095 = 1500, can use to calculate voltage of 3.3V supply
-            RegPeltierTempColdsideAdc,          //5,
-            RegPeltierTempColdsideCelsius,      //6	
-            RegPeltierTempHotsideAdc,           //7,
-            RegPeltierTempHotsideCelsius,       //8	
-            RegPeltierPWMDutyCycle,             //9
-            RegPeltierReverseMode,              //10, if set to 0, run in normal mode, if 1, reverse heat transfer direction. Note that 100%duty cycle is fastest heat transfer in normal but slowest in reverse mode. 
-            RegPeltierBangBangTempTargetAdc,    //11,
-            RegPeltierBangBangTempAllowanceAdc, //12,
-            RegPeltierPidSetpointAdc,           //13, target temp adc for the pid loop to achieve
-            RegPeltierPidDt,                    //14, units of ms; recalculate error value every dt ms
-            RegPeltierPidKp,                    //15, constant of proporionality controlling the proportional term
-            RegPeltierPidKi,                    //16, constant of proporionality controlling the integral term
-            RegPeltierPidKd,                    //17, constant of proporionality controlling the derivative term
-            RegPeltierPidManipulatedVariable,   //18, when written to, changes PWM's CCR1 reg to the written value: value = u(t) = Kp*e(t) + Ki*e(t)*dt + Kd*( e(t_n)-e(t_n-1) )/dt. e(t), error value, computed in GUI/Python
+            RegPeltierTempColdsideAdc,          //5, when read, takes an adc measurement of the thermister on cold side of heat pump
+            RegPeltierTempColdsideCelsius,      //6	when read, takes an adc measurement of the thermister on cold side of heat pump and converts that temp into celsius !!currently broken. Will also need to handle negative values
+            RegPeltierTempHotsideAdc,           //7, when read, takes an adc measurement of the thermister on hot side of heat pump
+            RegPeltierTempHotsideCelsius,       //8	when read, takes an adc measurement of the thermister on hot side of heat pump and converts that temp into celsius !!currently broken. Will also need to handle negative values
+            RegPeltierTempBoxAdc,               //9, when read, takes an adc measurement of the thermister inside the insulated box
+            RegPeltierTempBoxCelsius,           //10 when read, takes an adc measurement of the thermister on cold side of heat pump and converts to celsius
+            RegPeltierPWMDutyCycle,             //d11 when written to, changes the PWM duty cycle to whatever percentage was entered
+            RegPeltierReverseMode,              //12, if set to 0 (default), run in normal mode; if 1, reverse heat transfer direction. Note that 100% duty cycle is maximum heat transfer in normal but slowest in reverse mode. 
+            RegPeltierBangBangTempTargetAdc,    //13, enabled by uncommenting BangBangControl macro in main.h; Target adc value: if current temp adc is below this value PWM turns/stays on when met or exceeded PWM turns off.
+            RegPeltierBangBangTempAllowanceAdc, //14, enabled by uncommenting BangBangControl macro in main.h; The interval below target adc where PWM will remain off even though current temp is below target. PWM will turn on again once current temp adc drops below Target-Allowance
+            RegPeltierPidSetpointAdc,           //15, target temp adc for the pid loop to achieve
+            RegPeltierPidDt,                    //16, units of ms; recalculate error value every dt ms
+            RegPeltierPidKp,                    //17, constant of proporionality controlling the proportional term
+            RegPeltierPidKi,                    //18, constant of proporionality controlling the integral term
+            RegPeltierPidISum,
+            RegPeltierPidISumMax,
+            RegPeltierPidKd,                    //19, constant of proporionality controlling the derivative term
+            RegPeltierPidMv,   //20, when written to, changes PWM's CCR1 reg to the written value: value = u(t) = Kp*e(t) + Ki*e(t)*dt + Kd*( e(t_n)-e(t_n-1) )/dt. e(t), error value, computed in GUI/Python
+            RegPeltierForceTemp,                //21, when nonzero, overrides the PID controller to rush 100% to the setpoint. Then stops when it is within a few adc values, returning control to PID controller. Stopping override is handled by ReadReg(RegPeltierTempColdsideAdc)
             RegLast
         };
 
@@ -53,9 +60,28 @@ namespace ImuTest01NS {
         {
             switch (reg)
             {
-              
-                //case REGS.RegImuGzOffset:
-                    //return true;
+                /*
+                  case REGS.RegPeltierTempColdsideAdc:
+                      return true;
+                  case REGS.RegPeltierTempHotsideAdc:
+                      return true;
+                */
+            
+                default:
+                    return false;
+            }
+        }
+
+        public static bool Reg32S(REGS reg)
+        {
+            switch (reg)
+            {
+                case REGS.RegPeltierPidISum:
+                    return true;
+                case REGS.RegPeltierPidISumMax:
+                    return true;
+                case REGS.RegPeltierPidMv:
+                    return true;
                 default:
                     return false;
             }
@@ -97,9 +123,9 @@ namespace ImuTest01NS {
             public string description;
         }
 
-        public ImuTest01Comms()
+        public PidControlledPeltierComms()
         {
-            List<string> ports = ImuTest01Comms.GetPortNames();
+            List<string> ports = PidControlledPeltierComms.GetPortNames();
             if (ports.Count > 0)
             {
                 newPort(ports[0]);
@@ -107,7 +133,7 @@ namespace ImuTest01NS {
             }
         }
 
-        public ImuTest01Comms(string port)
+        public PidControlledPeltierComms(string port)
         {
             newPort(port);
             this.Open();
@@ -117,7 +143,7 @@ namespace ImuTest01NS {
         public static List<string> GetPortNames()
         {
             List<string> names = new List<string>();
-            List<ComPort> portExtraInfo = ImuTest01Comms.GetSerialPorts();
+            List<ComPort> portExtraInfo = PidControlledPeltierComms.GetSerialPorts();
             for (int i = 0; i < portExtraInfo.Count; ++i)
             {
                 if ((portExtraInfo[i].vid == "0483") && (portExtraInfo[i].pid == "5740"))   //F7 board
@@ -243,14 +269,16 @@ namespace ImuTest01NS {
             }
         }
 
-        public bool SetNvParam( NVparams param, UInt16 value ) {
+        public bool SetNvParam(NVparams param, UInt16 value)
+        {
             string str = "s" + ((UInt16)param).ToString("x") + "=" + value.ToString("x");
             this.WriteLine(str);
             string resStr = this.ReadLine();
             return true;
         }
 
-        public UInt16 GetNvParam( NVparams param ) {
+        public UInt16 GetNvParam(NVparams param)
+        {
             string str = "g" + ((UInt16)param).ToString("x");
             this.WriteLine(str);
             string resStr = this.ReadLine();
@@ -272,21 +300,31 @@ namespace ImuTest01NS {
             return result;
         }
 
-        public bool FlashNvParams() {
+        public bool FlashNvParams()
+        {
             string str = "f";
             this.WriteLine(str);
-            string resStr = this.ReadLine(); 
+            string resStr = this.ReadLine();
             return true;
         }
         public bool SetReg(REGS reg, UInt16 value)
         {
             string str = "w" + ((UInt16)reg).ToString("x") + "=" + value.ToString("x");
-            this.WriteLine(str+"\n");
+            this.WriteLine(str + "\n");
             string resStr = this.ReadLine();
             return true;
         }
 
-        public UInt16 GetReg( REGS reg ) {
+        public bool SetReg32S(REGS reg, Int32 value)
+        {
+            string str = "W" + ((UInt16)reg).ToString("x") + "=" + value.ToString("x");
+            this.WriteLine(str + "\n");
+            string resStr = this.ReadLine();    //Currently cannot write a value larger than 65535. Limitation in SerialPort file? 
+            return true;
+        }
+
+        public UInt16 GetReg(REGS reg)
+        {
             string str = "r" + ((UInt16)reg).ToString("x");
             this.WriteLine(str);
             string resStr = this.ReadLine();
@@ -302,6 +340,23 @@ namespace ImuTest01NS {
             return result;
         }
 
+        public Int32 GetReg32S(REGS reg)
+        {
+            string str = "R" + ((UInt16)reg).ToString("x");
+            this.WriteLine(str);
+            string resStr = this.ReadLine();
+            Int32 result = 0;
+            try
+            {
+                result = Convert.ToInt32(resStr.Substring(resStr.IndexOf(@"=") + 1), 16);
+            }
+            catch
+            {
+                result = Int32.MaxValue;
+            }
+            return result;
+        }
+
         public UInt16[] GetReg(REGS[] reg)
         {
             UInt16[] result = new UInt16[(int)REGS.RegLast];
@@ -311,51 +366,28 @@ namespace ImuTest01NS {
             }
             return result;
         }
-/*
-        public Double[] GetFullTilt()
-        {
-            Double[] result = new Double[tiltPoints];
-            int idx = 0;
-            do
-            {
-                string str = "z";
-                this.WriteLine(str);
-                //System.Threading.Thread.Sleep(10);
-                string resStr = this.ReadLine();
-                string[] nums = resStr.Split(',');
 
-                for (int j = 0; j < nums.Length; ++j)
+        public Int32[] GetReg32S(REGS[] reg)
+        {
+            Int32[] result = new Int32[(int)REGS.RegLast];
+            for (int i = 0; i < (int)REGS.RegLast; i++)
+            {
+                if (PidControlledPeltierComms.Reg32S(reg[i]))
                 {
-                    result[idx++] = 0.0180 / Math.PI * Convert.ToDouble(nums[j]);
+                    result[i] = GetReg32S(reg[i]);
+                }
+                else
+                {
+                    result[i] = GetReg(reg[i]);
                 }
             }
-            while (idx < tiltPoints);
-            this.SetReg(REGS.RegFullIndex, 0);
             return result;
         }
 
-        public Double[] GetSmoothTilt()
+        public Int32 ConvertTo32s(UInt16 high, UInt16 low)
         {
-            Double[] result = new Double[tiltPoints];
-            int idx = 0;
-            do
-            {
-                string str = "y";
-                this.WriteLine(str);
-                //System.Threading.Thread.Sleep(10);
-                string resStr = this.ReadLine();
-                string[] nums = resStr.Split(',');
-
-                for (int j = 0; j < nums.Length; ++j)
-                {
-                    result[idx++] = 0.0180 / Math.PI * Convert.ToDouble(nums[j]);
-                }
-            }
-            while (idx < tiltPoints);
-            this.SetReg(REGS.RegFullIndex, 0);
-            return result;
+            Int32 full = (Int32)(high) * (Int32)Math.Pow(2, 16) + (Int32)low;
+            return full;
         }
-*/
-
     }
 }

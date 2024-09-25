@@ -1,4 +1,4 @@
-namespace ImuTest01NS {
+namespace PidControlledPeltierNS {
     partial class MainForm {
         /// <summary>
         /// Required designer variable.
@@ -803,7 +803,7 @@ namespace ImuTest01NS {
             this.Controls.Add(this.guiRev);
             this.Margin = new System.Windows.Forms.Padding(4);
             this.Name = "MainForm";
-            this.Text = "ImuTest01GUI";
+            this.Text = "PidControlledPeltierGUI";
             this.Shown += new System.EventHandler(this.MainForm_Shown);
             this.nvParamsPage.ResumeLayout(false);
             this.nvParamsPage.PerformLayout();

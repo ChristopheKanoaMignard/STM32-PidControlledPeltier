@@ -11,10 +11,10 @@ using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using static System.Net.Mime.MediaTypeNames;
 
-namespace ImuTest01NS {
+namespace PidControlledPeltierNS {
     public partial class MainForm : Form
     {
-        ImuTest01Comms theBoard;
+        PidControlledPeltierComms theBoard;
         int fwRev = 0;
         private bool boardConnected = false;
         bool boardInit = false;
@@ -26,13 +26,13 @@ namespace ImuTest01NS {
             guiRev.Text = "Rev XX";
             try
             {
-                theBoard = new ImuTest01Comms();
+                theBoard = new PidControlledPeltierComms();
                 PopulatePorts();
                 //Console.WriteLine(" in MainForm, is the board open?: " + theBoard.IsOpen);
                 checkBox_Connect.Checked = theBoard.IsOpen;
                 InitBoard();
             }
-            catch (ImuTest01Comms.Comm_Exception)
+            catch (PidControlledPeltierComms.Comm_Exception)
             {
                 Console.Write("caught comm_exception");
             }
@@ -43,7 +43,7 @@ namespace ImuTest01NS {
             try
             {
                 //theBoard.WriteLine("slj");
-                fwRev = theBoard.GetReg(ImuTest01Comms.REGS.RegFirmWareVersion);
+                fwRev = theBoard.GetReg(PidControlledPeltierComms.REGS.RegFirmWareVersion);
             }
             catch (Exception)
             {
@@ -87,7 +87,7 @@ namespace ImuTest01NS {
         {
             object selItem = comboBox_CommPort.SelectedItem;
 
-            List<string> portNames = ImuTest01Comms.GetPortNames();
+            List<string> portNames = PidControlledPeltierComms.GetPortNames();
             comboBox_CommPort.Enabled = false;
             comboBox_CommPort.Items.Clear();
             comboBox_CommPort.Items.AddRange(portNames.ToArray());
@@ -199,12 +199,12 @@ namespace ImuTest01NS {
         private void WriteHeaders()
         {
             tickChecked = false;
-            for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+            for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
             {
                 if (statusList.Rows[(int)i].Cells[0].Value.ToString() == true.ToString())
                 {
                     logFile.Write(i.ToString() + ',');
-                    if (i == ImuTest01Comms.REGS.RegTick)
+                    if (i == PidControlledPeltierComms.REGS.RegTick)
                     {
                         tickChecked = true;
                     }
@@ -257,28 +257,37 @@ namespace ImuTest01NS {
             timer1.Enabled = plot.Checked | log.Checked;
         }
 
-        private int getRegs(ImuTest01Comms.REGS i)
+        private int getRegs(PidControlledPeltierComms.REGS i)
         {
             UInt16 value = theBoard.GetReg(i);
             int result = value;
-            if (ImuTest01Comms.RegSigned(i))
+            if (PidControlledPeltierComms.RegSigned(i))
             {
                 result = (Int16)value;
             }
             return result;
         }
 
-        private int[] getRegs(ImuTest01Comms.REGS[] i)
+        
+
+        private int[] getRegs(PidControlledPeltierComms.REGS[] i)
         {
             int[] result = new int[i.Length];
             UInt16[] uResult = theBoard.GetReg(i);
+            //Int32[] uResult = theBoard.GetReg32S(i);    //This function internally descriminates 32 from 16 bit regs
+
             for (int j = 0; j < i.Length; j++)
             {
-                if (ImuTest01Comms.RegSigned(i[j]))
+                if (PidControlledPeltierComms.Reg32S(i[j]))
+                {
+                    return theBoard.GetReg32S(i);
+                }
+                else if (PidControlledPeltierComms.RegSigned(i[j]))
                 {
                     result[j] = (Int16)uResult[j];
                 }
-                else
+
+                else         
                 {
                     result[j] = uResult[j];
                 }
@@ -286,22 +295,22 @@ namespace ImuTest01NS {
             return result;
         }
 
-        ImuTest01Comms.REGS[] allRegs;
+        PidControlledPeltierComms.REGS[] allRegs;
 
         private void initRegs()
         {
             statusList.Enabled = true;
-            checkedCells = new List<ImuTest01Comms.REGS>();
+            checkedCells = new List<PidControlledPeltierComms.REGS>();
             statusList.Rows.Clear();
-            allRegs = new ImuTest01Comms.REGS[(int)ImuTest01Comms.REGS.RegLast];
-            for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+            allRegs = new PidControlledPeltierComms.REGS[(int)PidControlledPeltierComms.REGS.RegLast];
+            for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
             {
                 allRegs[(int)i] = i;
             }
             try
             {
                 int[] values = getRegs(allRegs);
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
                     string[] labels = new string[3];
                     labels[0] = "False";
@@ -310,8 +319,8 @@ namespace ImuTest01NS {
                     statusList.Rows.Add(labels);
                 }
             }
-            catch (ImuTest01Comms.Comm_Exception) { }
-            statusList.Rows[(int)ImuTest01Comms.REGS.RegTick].Cells[2].ToolTipText = "ms";
+            catch (PidControlledPeltierComms.Comm_Exception) { }
+            statusList.Rows[(int)PidControlledPeltierComms.REGS.RegTick].Cells[2].ToolTipText = "ms";
         }
 
         private void UpdateRegsPlot()
@@ -320,9 +329,9 @@ namespace ImuTest01NS {
             {
                 int[] values = getRegs(allRegs);
 
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
-                    if (ImuTest01Comms.RegHex(i))
+                    if (PidControlledPeltierComms.RegHex(i))
                     {
                         statusList.Rows[(int)i].Cells[2].Value = "0x"+values[(int)i].ToString("x");
                     }
@@ -344,7 +353,7 @@ namespace ImuTest01NS {
 
                         if (logFile != null)
                         {
-                            if (i == ImuTest01Comms.REGS.RegTick)
+                            if (i == PidControlledPeltierComms.REGS.RegTick)
                             {
                                 if (lastLogTick > value)
                                 {
@@ -381,9 +390,9 @@ namespace ImuTest01NS {
                     }
                 }
             }
-            catch (ImuTest01Comms.Comm_Exception)
+            catch (PidControlledPeltierComms.Comm_Exception)
             {
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
                     statusList.Rows[(int)i].Cells[2].Value = "";
                 }
@@ -395,9 +404,9 @@ namespace ImuTest01NS {
             try
             {
                 int[] values = getRegs(allRegs);
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
-                    if (ImuTest01Comms.RegHex(i))
+                    if (PidControlledPeltierComms.RegHex(i))
                     {
                         statusList.Rows[(int)i].Cells[2].Value = "0x" + values[(int)i].ToString("x");
                     }
@@ -407,9 +416,9 @@ namespace ImuTest01NS {
                     }
                 }
             }
-            catch (ImuTest01Comms.Comm_Exception)
+            catch (PidControlledPeltierComms.Comm_Exception)
             {
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
                     statusList.Rows[(int)i].Cells[2].Value = "xxx";
                 }
@@ -422,14 +431,14 @@ namespace ImuTest01NS {
         }
 
         bool cellsChecked = false;
-        List<ImuTest01Comms.REGS> checkedCells;
+        List<PidControlledPeltierComms.REGS> checkedCells;
 
         private void statusList_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
             if (!statusList.Enabled) return;
             if (e.ColumnIndex == statusList.Columns.IndexOf(selected))
             {
-                if (e.RowIndex >= (int)ImuTest01Comms.REGS.RegLast)
+                if (e.RowIndex >= (int)PidControlledPeltierComms.REGS.RegLast)
                 {
                     statusList.Rows[e.RowIndex].Cells[0].Value = false;
                     return;
@@ -437,7 +446,7 @@ namespace ImuTest01NS {
                 chart1.Series.Clear();
                 cellsChecked = false;
                 checkedCells.Clear();
-                for (ImuTest01Comms.REGS i = (ImuTest01Comms.REGS)0; i < ImuTest01Comms.REGS.RegLast; i++)
+                for (PidControlledPeltierComms.REGS i = (PidControlledPeltierComms.REGS)0; i < PidControlledPeltierComms.REGS.RegLast; i++)
                 {
                     if (statusList.Rows[(int)i].Cells[0].Value.ToString() == true.ToString())
                     {
@@ -464,7 +473,7 @@ namespace ImuTest01NS {
             }
             else if (e.ColumnIndex == statusList.Columns.IndexOf(newVal))
             {
-                if (e.RowIndex < 0 || e.RowIndex >= (int)ImuTest01Comms.REGS.RegLast)
+                if (e.RowIndex < 0 || e.RowIndex >= (int)PidControlledPeltierComms.REGS.RegLast)
                 {
                     return;
                 }
@@ -480,25 +489,33 @@ namespace ImuTest01NS {
                 }
                 try
                 {
-                    if (ImuTest01Comms.RegSigned((ImuTest01Comms.REGS)e.RowIndex))
+                    if (PidControlledPeltierComms.Reg32S((PidControlledPeltierComms.REGS)e.RowIndex))
+                    {
+                        if (newvalue >= -2147483648 && newvalue <= 2147483647)
+                        {
+                            bool success = theBoard.SetReg32S((PidControlledPeltierComms.REGS)e.RowIndex, (int)newvalue);
+                        }
+                        newvalue = (int)((short)theBoard.GetReg32S((PidControlledPeltierComms.REGS)e.RowIndex));
+                    }
+                    else if (PidControlledPeltierComms.RegSigned((PidControlledPeltierComms.REGS)e.RowIndex))
                     {
                         if (newvalue >= -32768 && newvalue <= 32767)
                         {
-                            bool success = theBoard.SetReg((ImuTest01Comms.REGS)e.RowIndex, (ushort)newvalue);
+                            bool success = theBoard.SetReg((PidControlledPeltierComms.REGS)e.RowIndex, (ushort)newvalue);
                         }
-                        newvalue = (int)((short)theBoard.GetReg((ImuTest01Comms.REGS)e.RowIndex));
+                        newvalue = (int)((int)theBoard.GetReg((PidControlledPeltierComms.REGS)e.RowIndex));
                     }
                     else
                     {
                         if (newvalue >= 0 && newvalue <= 0xFFFF)
                         {
-                            bool success = theBoard.SetReg((ImuTest01Comms.REGS)e.RowIndex, (ushort)newvalue);
+                            bool success = theBoard.SetReg((PidControlledPeltierComms.REGS)e.RowIndex, (ushort)newvalue);
                         }
-                        newvalue = (int)theBoard.GetReg((ImuTest01Comms.REGS)e.RowIndex);
+                        newvalue = (int)theBoard.GetReg((PidControlledPeltierComms.REGS)e.RowIndex);
                     }
                     statusList[statusList.Columns.IndexOf(value), e.RowIndex].Value = newvalue.ToString();
                 }
-                catch (ImuTest01Comms.Comm_Exception)
+                catch (PidControlledPeltierComms.Comm_Exception)
                 {
                     statusList[statusList.Columns.IndexOf(value), e.RowIndex].Value = "";
                 }
@@ -575,7 +592,7 @@ namespace ImuTest01NS {
         private void InitParams()
         {
             parameters.Rows.Clear();
-            for (ImuTest01Comms.NVparams i = (ImuTest01Comms.NVparams)0; i < ImuTest01Comms.NVparams.NvLast; i++)
+            for (PidControlledPeltierComms.NVparams i = (PidControlledPeltierComms.NVparams)0; i < PidControlledPeltierComms.NVparams.NvLast; i++)
             {
                 string[] labels = new string[4];
                 labels[0] = ((int)i).ToString("D");
@@ -589,12 +606,12 @@ namespace ImuTest01NS {
 
         private void ReadParameters()
         {
-            for (ImuTest01Comms.NVparams i = (ImuTest01Comms.NVparams)0; i < ImuTest01Comms.NVparams.NvLast; i++)
+            for (PidControlledPeltierComms.NVparams i = (PidControlledPeltierComms.NVparams)0; i < PidControlledPeltierComms.NVparams.NvLast; i++)
             {
                 try
                 {
                     int value;
-                    if (ImuTest01Comms.NvpSigned(i))
+                    if (PidControlledPeltierComms.NvpSigned(i))
                     {
                         value = (int)((short)theBoard.GetNvParam(i));
                     }
@@ -606,7 +623,7 @@ namespace ImuTest01NS {
                     parameters[parameters.Columns.IndexOf(pValue), (int)i].Value = value.ToString("D");
                     parameters[parameters.Columns.IndexOf(newValue), (int)i].Value = "";
                 }
-                catch (ImuTest01Comms.Comm_Exception)
+                catch (PidControlledPeltierComms.Comm_Exception)
                 {
                     parameters[parameters.Columns.IndexOf(pValue), (int)i].Value = "";
                     parameters[parameters.Columns.IndexOf(newValue), (int)i].Value = "";
@@ -632,25 +649,25 @@ namespace ImuTest01NS {
             }
             try
             {
-                if (ImuTest01Comms.NvpSigned((ImuTest01Comms.NVparams)e.RowIndex))
+                if (PidControlledPeltierComms.NvpSigned((PidControlledPeltierComms.NVparams)e.RowIndex))
                 {
                     if (value >= -32768 && value <= 32767)
                     {
-                        bool success = theBoard.SetNvParam((ImuTest01Comms.NVparams)e.RowIndex, (ushort)value);
+                        bool success = theBoard.SetNvParam((PidControlledPeltierComms.NVparams)e.RowIndex, (ushort)value);
                     }
-                    value = (int)((short)theBoard.GetNvParam((ImuTest01Comms.NVparams)e.RowIndex));
+                    value = (int)((short)theBoard.GetNvParam((PidControlledPeltierComms.NVparams)e.RowIndex));
                 }
                 else
                 {
                     if (value >= 0 && value <= 0xFFFF)
                     {
-                        bool success = theBoard.SetNvParam((ImuTest01Comms.NVparams)e.RowIndex, (ushort)value);
+                        bool success = theBoard.SetNvParam((PidControlledPeltierComms.NVparams)e.RowIndex, (ushort)value);
                     }
-                    value = (int)theBoard.GetNvParam((ImuTest01Comms.NVparams)e.RowIndex);
+                    value = (int)theBoard.GetNvParam((PidControlledPeltierComms.NVparams)e.RowIndex);
                 }
                 parameters[parameters.Columns.IndexOf(pValue), e.RowIndex].Value = value.ToString("D");
             }
-            catch (ImuTest01Comms.Comm_Exception)
+            catch (PidControlledPeltierComms.Comm_Exception)
             {
                 parameters[parameters.Columns.IndexOf(pValue), e.RowIndex].Value = "";
             }
@@ -670,13 +687,13 @@ namespace ImuTest01NS {
             {
                 System.IO.StreamWriter strWri = new System.IO.StreamWriter(saveFileDialog1.FileName, false, Encoding.ASCII);
                 strWri.WriteLine("ID, Parameter, Value");
-                for (ImuTest01Comms.NVparams i = (ImuTest01Comms.NVparams)0; i < ImuTest01Comms.NVparams.NvLast; i++)
+                for (PidControlledPeltierComms.NVparams i = (PidControlledPeltierComms.NVparams)0; i < PidControlledPeltierComms.NVparams.NvLast; i++)
                 {
                     try
                     {
                         strWri.WriteLine(((int)i).ToString() + "," + i.ToString() + "," + ((int)theBoard.GetNvParam(i)).ToString("D"));
                     }
-                    catch (ImuTest01Comms.Comm_Exception)
+                    catch (PidControlledPeltierComms.Comm_Exception)
                     {
                         strWri.WriteLine(((int)i).ToString() + "," + i.ToString() + "," + "XXX");
                     }
@@ -696,7 +713,7 @@ namespace ImuTest01NS {
                 {
                     strRead = new System.IO.StreamReader(openFileDialog1.FileName, Encoding.ASCII);
                     strRead.ReadLine();
-                    for (ImuTest01Comms.NVparams i = (ImuTest01Comms.NVparams)0; i < ImuTest01Comms.NVparams.NvLast; i++)
+                    for (PidControlledPeltierComms.NVparams i = (PidControlledPeltierComms.NVparams)0; i < PidControlledPeltierComms.NVparams.NvLast; i++)
                     {
                         string line = strRead.ReadLine();
                         string[] tokens = line.Split(',');
