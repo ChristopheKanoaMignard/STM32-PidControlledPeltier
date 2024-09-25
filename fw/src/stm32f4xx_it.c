@@ -39,7 +39,7 @@
 
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;
-
+extern DMA_HandleTypeDef hdma_adc1;
 /******************************************************************************/
 /*           Cortex-M4 Processor Interruption and Exception Handlers          */ 
 /******************************************************************************/
@@ -135,5 +135,15 @@ void OTG_HS_IRQHandler(void)
 	HAL_PCD_IRQHandler(&hpcd_USB_OTG_HS);
 	}
 
+void DMA2_Stream0_IRQHandler(void)
+{
+	/* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
+
+	/* USER CODE END DMA2_Stream0_IRQn 0 */
+	HAL_DMA_IRQHandler(&hdma_adc1);
+	/* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
+
+	/* USER CODE END DMA2_Stream0_IRQn 1 */
+}
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

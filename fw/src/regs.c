@@ -17,18 +17,34 @@ volatile REG_BLOCK Regs;
 extern uint16_t FirmWareVersion;
 extern SPI_HandleTypeDef hspi2;
 extern ADC_HandleTypeDef hadc1;
-
+extern uint16_t hotsideFifo[fifoMaxIndex];
+extern uint16_t coldsideFifo[fifoMaxIndex];
+extern uint16_t boxFifo[fifoMaxIndex];
+extern int boolPidOverride;
+extern int32_t integralSummation;
 
 uint16_t ReadAdc(uint16_t chan);
 int boolPeltierIsOn = 0;
 
 void InitRegs() {
 	//Power-on intitializations
-	Regs.u16[RegPeltierPidKp] = 200;
-	Regs.u16[RegPeltierPidKi] = 100;
+#ifdef BangBangControl
+	Regs.u16[RegPeltierBangBangTempTargetAdc] = 2400;
+	Regs.u16[RegPeltierBangBangTempAllowanceAdc] = 100;
+#endif
+#ifdef PidControl
+	
+	Regs.u16[RegPeltierPidKp] = 1000;
+	Regs.u16[RegPeltierPidKi] = 500;
 	Regs.u16[RegPeltierPidKd] = 0;
-	Regs.u16[RegPeltierPidSetpointAdc] = 2400;
-	Regs.u16[RegPeltierPidDt] = 3;
+	Regs.u16[RegPeltierPidSetpointAdc] = 2000;
+	//Regs.u16[RegPeltierPidDt] = 3;
+	Regs.u16[RegPeltierForceTemp] = 0;
+	Regs.s32[RegPeltierPidISum] = 0;
+	Regs.s32[RegPeltierPidISumMax] = 40000;			
+	Regs.s32[RegPeltierPidMv] = 0;
+#endif
+	
 	if (HAL_SPI_Init(&hspi2) != HAL_OK)
 		Error_Handler();
 
@@ -70,35 +86,73 @@ uint8_t ReadReg(uint16_t nReg) {
 		case RegAdcRef:
 			Regs.u16[nReg] = ReadAdc(17); //internal reference voltage (1.2Vnom), should be around 1.2/3.3*4095 = 1500, can use to calculate voltage of 3.3V supply
 			break;
-    case RegPeltierTempColdsideAdc:
-	    Regs.u16[nReg] = ReadAdc(13); //tempearture sensor attached to heat sink fans using 3V and a 10Kohm voltage divider
+    case RegPeltierTempColdsideAdc:		//Reading reg causes an a-to-d conversion in bang-bang mode. However, in PID controlled mode, the conversion is synchronized with loop recomputation.
+#ifdef PidControl	    
+	    //Only bother to check if override should be dropped if override is currently in place
+	    if (boolPidOverride == 1)
+	    {
+		    //If ReverseMode is False, then TempADC was rising, and should rise until it exceeds the ForcePoint. Then end the PID override
+		    if ((Regs.u16[RegPeltierReverseMode] == 0) 
+			    && (Regs.u16[RegPeltierTempColdsideAdc] > Regs.u16[RegPeltierForceTemp]))
+		    {
+			    SetReg(RegPeltierForceTemp, 0);
+		    }
+		    
+		    //If ReverseMode is True, then TempADC was falling, and should fall until it drops below ForcePoint. Then end the PID override
+		    else if ((Regs.u16[RegPeltierReverseMode] == 1) 
+					&& (Regs.u16[RegPeltierTempColdsideAdc] < Regs.u16[RegPeltierForceTemp]))
+		    {
+			    SetReg(RegPeltierForceTemp, 0);
+		    }
+			    
+	    }
+#endif
+		      
 #ifdef BangBangControl
-	    
+	    Regs.u16[nReg] = ReadAdc(13); //tempearture sensor attached to cold heat sink fans using 3V and a 10Kohm voltage divider
 	    //If desired temp (adc) has been reached, then turn off cooler
-	    if (boolPeltierIsOn == 1 & Regs.u16[RegPeltierTempColdsideAdc] >= Regs.u16[RegPeltierBangBangTempTargetAdc]) {
+	    if ( (boolPeltierIsOn == 1) && (Regs.u16[RegPeltierTempColdsideAdc] >= Regs.u16[RegPeltierBangBangTempTargetAdc])) {
 		    TIM3->CCR1 = (uint32_t)(0);  
 		    boolPeltierIsOn = 0;
 	    }
 	    //If temp (adc) has dropped below the desired allowance threshold (Target-Allowance), turn cooler back on until desired temp is reached again
-	    else if(boolPeltierIsOn == 0 & Regs.u16[RegPeltierTempColdsideAdc] < (Regs.u16[RegPeltierBangBangTempTargetAdc] - Regs.u16[RegPeltierBangBangTempAllowanceAdc])) {	
+	    else if( (boolPeltierIsOn == 0) && (Regs.u16[RegPeltierTempColdsideAdc] < (Regs.u16[RegPeltierBangBangTempTargetAdc] - Regs.u16[RegPeltierBangBangTempAllowanceAdc]))) {	
 		    TIM3->CCR1 = (uint32_t)(0xFFFF);
 		    boolPeltierIsOn = 1;
 	    }
 #endif
 	    break;
+	    
     case RegPeltierTempColdsideCelsius:		//!! Should I use ReadAdc(13 or Regs.u16[RegPeltierTempHeatsinkAdc]?	!!//
 	    //Regs.u16[nReg] = (uint16_t)(1 / (1 / 3650 * -log(4095.00000001 / ReadAdc(13) - 1) + 1 / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
-	    Regs.u16[nReg] = (uint16_t)(1 / (1 / 3650 * -log(4100 / ReadAdc(13) - 1) + 1 / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
+	    //Regs.f32[nReg] = (int32_t)(1. / (1. / 3650 * -log(4095.00000001 / ReadAdc(13) - 1) + 1. / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
 
 	    break;
-    case RegPeltierTempHotsideAdc:
-	    Regs.u16[nReg] = ReadAdc(12); //tempearture sensor attached to heat sink fans using 3V and a 10Kohm voltage divider
+	    
+    case RegPeltierTempHotsideAdc:		//Reading reg causes an a-to-d conversion in bang-bang mode. However, in PID controlled mode, the conversion is synchronized with loop recomputation.
+#ifdef PidControl
+#endif
+	    
+#ifdef BangBangControl
+	    Regs.u16[nReg] = ReadAdc(12); //tempearture sensor attached to hot heat sink fans using 3V and a 10Kohm voltage divider
+#endif
 	    break;
-    case RegPeltierTempHotsideCelsius:		//!! Should I use ReadAdc(13 or Regs.u16[RegPeltierTempHeatsinkAdc]?	!!//
-	    Regs.u16[nReg] = (uint16_t)(1 / (1 / 3650 * -log(4095.00000001 / ReadAdc(12) - 1) + 1 / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
+	    
+    case RegPeltierTempHotsideCelsius:
+	    //Regs.f32[nReg] = (int32_t)(1. / (1. / 3650 * -log(4095.00000001 / ReadAdc(12) - 1) + 1. / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
 	    break;
+	    
+    case RegPeltierTempBoxAdc:		//Reading reg causes an a-to-d conversion in bang-bang mode. However, in PID controlled mode, the conversion is synchronized with loop recomputation.
+#ifdef PidControl
+#endif
+		    
+	    break;
+    case RegPeltierTempBoxCelsius:		//!! Should I use ReadAdc(13 or Regs.u16[RegPeltierTempHeatsinkAdc]?	!!//
+	    //Regs.f32[nReg] = (int32_t)(1. / (1. / 3650 * -log(4095.00000001 / ReadAdc(12) - 1) + 1. / 298)) - 273;	//see black lab notebook, pg 52-53 for derrivation using Steinhart–Hart equation
+	    break;
+	    
     case RegPeltierPWMDutyCycle:		//!! Should I use ReadAdc(13 or Regs.u16[RegPeltierTempHeatsinkAdc]?	!!//
-	    Regs.u16[nReg] = (uint16_t)(100 * (TIM3->CCR1) / 0xFFFF);
+	    Regs.u16[nReg] = (100 * (TIM3->CCR1) / 0xFFFF);
 	    break;
 		default:
 			break;
@@ -111,6 +165,17 @@ void SetReg(uint16_t nReg, uint16_t value)
 	if (nReg >= RegLast || nReg >= REG_SIZE16) return;
     
 	switch (nReg) {
+		
+	case RegPeltierTempColdsideAdc:
+		Regs.u16[nReg] = value;
+		break;
+	case RegPeltierTempHotsideAdc:
+		Regs.u16[nReg] = value;
+		break;
+	case RegPeltierTempBoxAdc:
+		Regs.u16[nReg] = value;
+		break;
+		
 	case RegPeltierPWMDutyCycle:
 		Regs.u16[nReg] = value;
 		TIM3->CCR1 = (uint32_t)(0xFFFF * ((double)(value) / 100));	//value is the desired duty cycle in percentage.
@@ -121,19 +186,24 @@ void SetReg(uint16_t nReg, uint16_t value)
 			boolPeltierIsOn = 0;
 		}
 		break;
-		#ifdef BangBangControl
+		
+#ifdef BangBangControl
 	case RegPeltierBangBangTempTargetAdc:	
 		Regs.u16[nReg] = value;
+		
 		if (ReadReg(RegPeltierTempColdsideAdc) < value) {
 			TIM3->CCR1 = (uint32_t)(0xFFFF);
 			boolPeltierIsOn = 1;
 		}
+	
 		break;
 	case RegPeltierBangBangTempAllowanceAdc:	
 		Regs.u16[nReg] = value;
 		break;
-		#endif
+#endif
+		
 	case RegPeltierReverseMode:		//!! Change the way this works. Throw up a flag when negative Manipulated Variables are detected to enter reverse mode.	!!//
+		Regs.u16[nReg] = value;
 		if (value == 1) {
 			HAL_GPIO_WritePin(DriverInput2_GPIO_Port, DriverInput2_Pin, GPIO_PIN_SET);		//reverse heat pumping direction. 100% duty cycle is now off, 0% is maximum heat pumping.
 		}
@@ -147,6 +217,7 @@ void SetReg(uint16_t nReg, uint16_t value)
 		#ifdef PidControl
 	case RegPeltierPidSetpointAdc:
 		Regs.u16[nReg] = value;
+		integralSummation = 0;		//Account for integral windup by resetting the integral error to 0 whenever SP is changed. 
 		break;
 	case RegPeltierPidKp:
 		Regs.u16[nReg] = value;
@@ -157,24 +228,37 @@ void SetReg(uint16_t nReg, uint16_t value)
 	case RegPeltierPidKi:
 		Regs.u16[nReg] = value;
 		break;
+	case RegPeltierPidISumMax:
+		Regs.s32[nReg] = value;
+		break;
 	case RegPeltierPidKd:
 		Regs.u16[nReg] = value;
 		break;
-	case RegPeltierPidManipulatedVariable:		//!! Currently setting TIM3->CCR1 = MV in while(1) of main.c, but would prefer to do it here. 
+	case RegPeltierForceTemp:			//If given a positive value, this will throw a flag that prevents further PID calculations or allowing pid controller to alter PWM. Also, for comfort of life, eliminate integral windup
 		Regs.u16[nReg] = value;
-		/*
-		if (value > 0xFFFF) {
-			//this check is probably unnecessary since CCR1 is a 32bit reg even though CCR1 can only usefully go up to 16 bit values. The odds of this PID ever returning a number bigger than 2^16-1 let alone 2^32-1 is very small and might not matter anyways.
-			value = 0xFFFF;
+		
+		if (value > 0) {
+			boolPidOverride = 1;
+			integralSummation = 0;
+			
+			if (Regs.u16[RegPeltierTempColdsideAdc] < value) {		//if coldside needs to get colder, run in normal mode with PWM = 100% ie max cooling. Else do opposite. 
+				SetReg(RegPeltierReverseMode, 0);
+				TIM3->CCR1 = 0xFFFF;
+			}
+			else {
+				SetReg(RegPeltierReverseMode, 1);
+				TIM3->CCR1 = 0;
+			}
 		}
-		else if (value < 0) {
-			//!!this check is only a temporary measure. I need to handle entering reverse mode automatically for pid control to work well
-			value = 0;
-			asm("bkpt 255");	
+		
+		else {
+			boolPidOverride = 0;
 		}
-		TIM3->CCR1 = value;
+		
+		
+			
+		
 		break;
-	*/
 		#endif
 	default :
 		break;
@@ -185,8 +269,8 @@ void SetReg(uint16_t nReg, uint16_t value)
 
 
 
-uint16_t ReadAdc(uint16_t chan)
-{
+uint16_t ReadAdc(uint16_t chan)		
+{	
 	ADC_ChannelConfTypeDef sConfig = { 0 };
 	if (13 == chan)
 		sConfig.Channel = ADC_CHANNEL_13;

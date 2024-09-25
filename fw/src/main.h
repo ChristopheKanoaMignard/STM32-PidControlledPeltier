@@ -23,11 +23,22 @@ extern "C" {
 #include "commands.h"	
 	
 /* Defines -------------------------------------------------------------------*/
-//#define RtosTest
 //#define BangBangControl
 #define PidControl
+#define PidControlNested
+#define fifoMaxIndex					((uint8_t) 9)		//Boxcar averaging reduces noise by a factor of sqrt(fifoMaxIndex)
+/* Exported variables -------------------------------------------------------*/
+extern uint32_t adcTemps[2];
+extern ADC_HandleTypeDef hadc1;
+extern uint16_t hotsideFifo[fifoMaxIndex];
+extern uint16_t coldsideFifo[fifoMaxIndex];
+extern uint16_t boxFifo[fifoMaxIndex];
+extern int32_t integralSummation;
+extern int boolPidOverride;
+	
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+uint16_t AverageAdc(uint8_t len, uint16_t array[len]);
 	
 #ifdef __cplusplus
 }

@@ -21,11 +21,12 @@ void Parse()
 {
 	int num, reg, val = 0;
 	uint16_t txLen = 0;
+	int32_t txLen32S = 0;
 	uint16_t numsPerBuf = 8;
 
 	rxBuf[rxLen] = 0; //make sure the string is terminated with '\0'
 	switch (rxBuf[0]) {
-	case 'w': //write a register
+	case 'w': //write a u16 register
 		sscanf((char *)&rxBuf[1], "%x=%x\n", &reg, &val);
     	if (reg >= RegLast)
     	{
@@ -38,7 +39,7 @@ void Parse()
     	}
     	CDC_Transmit_HS(txBuf, txLen);
     	break;
-	case 'r': //read a register
+	case 'r': //read a u16 register
 		sscanf((char *)&rxBuf[1], "%x\n", &reg);
     	if (reg >= RegLast)
     	{
@@ -51,6 +52,32 @@ void Parse()
     	}
     	CDC_Transmit_HS(txBuf, txLen);
     	break;
+	case 'W': //write a s32 register
+		sscanf((char *)&rxBuf[1], "%x=%x\n", &reg, &val);
+		if (reg >= RegLast)
+		{
+			txLen32S = sprintf((char *)txBuf, "W%x=??, invalid reg #\n", reg);
+		}
+		else
+		{
+			SetReg(reg, val);
+			txLen32S = sprintf((char *)txBuf, "W%x=%lx\n", reg, Regs.s32[reg]);
+		}
+		CDC_Transmit_HS(txBuf, txLen32S);
+		break;
+	case 'R': //read a s32 register
+		sscanf((char *)&rxBuf[1], "%x\n", &reg);
+		if (reg >= RegLast)
+		{
+			txLen32S = sprintf((char *)txBuf, "R%x=??, invalid reg #\n", reg);
+		}
+		else
+		{
+			ReadReg(reg);
+			txLen32S = sprintf((char *)txBuf, "R%x=%lx\n", reg, Regs.s32[reg]);
+		}
+		CDC_Transmit_HS(txBuf, txLen32S);
+		break;
 	case 's': //write a nonvolatile parameter
 		sscanf((char *)&rxBuf[1], "%x=%x\n", &reg, &val);
     	if (reg >= NvLast)

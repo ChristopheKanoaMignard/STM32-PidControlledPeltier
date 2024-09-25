@@ -15,6 +15,10 @@ ADC_HandleTypeDef hadc1;
 ADC_HandleTypeDef hadc2;
 SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim3;
+
+
+DMA_HandleTypeDef hdma_adc1;
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void InitUsb(void);
@@ -26,6 +30,9 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 
 
+void MX_DMA_Init(void);
+
+
 
 /* Initialization functions ----------------------------------------------------*/
 /**
@@ -33,6 +40,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
   * @param None
   * @retval None
   */
+
 void MX_GPIO_Init(void)
 {
 	//PG13 -> green LED
@@ -148,6 +156,7 @@ void MX_NVIC_Init(void)
 	HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
 }
 
+
 /**
   * @brief ADC1 Initialization Function
   * @param None
@@ -167,11 +176,9 @@ void MX_ADC1_Init(void) {
 
 	/** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
 	*/
-/*Used PA1 for ADC1, but that goes to a MEMs interrupt which may be partially shorting to ground*/
 	hadc1.Instance = ADC1;
 	hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
 	hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-	//hadc1.Init.Resolution = ADC_RESOLUTION_6B;			//Attempted to reduce sampling time to resolve issue where 3V max occurs around 1/4 of the maxLine value. 	
 	hadc1.Init.ScanConvMode = DISABLE;
 	
 	hadc1.Init.ContinuousConvMode = DISABLE;
@@ -224,7 +231,7 @@ void MX_ADC2_Init(void) {
 
 	/** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
 	*/
-/*Used PA1 for ADC1, but that goes to a MEMs interrupt which may be partially shorting to ground*/
+	
 	hadc1.Instance = ADC1;
 	hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
 	hadc1.Init.Resolution = ADC_RESOLUTION_12B;	
@@ -255,6 +262,8 @@ void MX_ADC2_Init(void) {
 
 }
 
+
+
 /**
 * @brief ADC MSP Initialization
 * This function configures the hardware resources used in this example
@@ -271,13 +280,15 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 
 		__HAL_RCC_GPIOC_CLK_ENABLE();
 		
-		GPIO_InitStruct.Pin = Pin_Adc1ColdTherm | Pin_Adc1HotTherm;
+		GPIO_InitStruct.Pin = Pin_Adc1ColdTherm | Pin_Adc1HotTherm | Pin_Adc1BoxTherm;
 		GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
 		GPIO_InitStruct.Pull = GPIO_NOPULL;
 		HAL_GPIO_Init(GPIO_Port_Adc1ColdTherm, &GPIO_InitStruct);
 	}
 	
 }
+
+
 
 /**
 * @brief ADC MSP De-Initialization
@@ -292,10 +303,11 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 		/* Peripheral clock disable */
 		__HAL_RCC_ADC1_CLK_DISABLE();
 
-		HAL_GPIO_DeInit(GPIO_Port_Adc1ColdTherm, Pin_Adc1ColdTherm | Pin_Adc1HotTherm);
+		HAL_GPIO_DeInit(GPIO_Port_Adc1ColdTherm, Pin_Adc1ColdTherm | Pin_Adc1HotTherm | Pin_Adc1BoxTherm);
 	}
 
 }
+
 /**
   * @brief SPI2 Initialization Function
   * @param None

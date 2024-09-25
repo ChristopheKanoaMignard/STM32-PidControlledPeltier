@@ -31,15 +31,17 @@ void MX_ADC1_Init(void);
 void MX_NVIC_Init(void);
 void MX_SPI2_Init(void);
 void MX_TIM3_Init(void);	
+	
+void MX_DMA_Init(void);
 
 /* Defines ---------------------------------------------------------------------*/	
 #define Pin_LedGreen						GPIO_PIN_13
-//#define Pin_Adc1ColdTherm					GPIO_PIN_3
-//#define GPIO_Port_Adc1ColdTherm				GPIOC
-#define Pin_Adc1ColdTherm					GPIO_PIN_1
-#define GPIO_Port_Adc1ColdTherm				GPIOB
+#define Pin_Adc1ColdTherm					GPIO_PIN_3
+#define GPIO_Port_Adc1ColdTherm				GPIOC
 #define Pin_Adc1HotTherm					GPIO_PIN_2
 #define GPIO_Port_Adc1HotTherm				GPIOC
+#define Pin_Adc1BoxTherm					GPIO_PIN_1
+#define GPIO_Port_Adc1BoxTherm				GPIOC
 	
 #define DriverInputPWM_Pin					GPIO_PIN_6
 #define DriverInputPWM_GPIO_Port			GPIOC
