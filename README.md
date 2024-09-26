@@ -1,6 +1,6 @@
 # STM32F4-Peltier
 ## Overview and Theory
-A proportional integral derivative (PID) controller is a feedback loop designed to bring a process value (PV) to a set point (SP). The error between the PV and the SP is continuously recalculated, and determines how much to adjust a control variable (CV). In this case, the PV and SP is the current and target temperature respectively inside an insulated box, and the control variable is the current supplied to a Peltier device via pulse width modulation (PWM). When the error between the PV and SP is large or if the PV has not reached the SP over a long duration, the CV is adjusted by the controller to pump heat faster; as the PV approaches the SP, the opposite is true. The controller adjusts the CV through three tunable parameters: $K_p,$ $K_i,$ and $K_d.$
+A proportional integral derivative (PID) controller is a feedback loop designed to bring a process value (PV) to a set point (SP). The error between the PV and the SP is periodically recalculated in order to determine how much to adjust a control variable (CV). In this case, the PV and SP is the current and target temperature respectively inside an insulated box, and the control variable is the current supplied to a Peltier device via pulse width modulation (PWM). When the error between the PV and SP is large or if the PV has not reached the SP over a long duration, the CV is adjusted by the controller to pump heat faster; as the PV approaches the SP, the opposite is true. The controller adjusts the CV through three tunable parameters: $K_p,$ $K_i,$ and $K_d.$
 
 By convention, let $SP=r(t),$ $PV=y(t),$ $CV=u(t),$ and $error=e(t).$ Then the mathematical expression of the PID controller is 
 $$u(t) = K_pe(t) + K_i \int_0^t e(\tau)d\tau + K_d\frac{de(t)}{dt}.$$
@@ -10,7 +10,7 @@ I will tune the three parameters through trial and error to find a combination t
 
 The microcontroller used for this project was an STM32F429I, the Peltier was a TEC1-12706 and its driver was an L298 dual full-bridge, and the various temperature sensors were hand-made using NTC thermistors in a voltage divider (the same as in my solar cell project: https://github.com/ChristopheKanoaMignard/STM32-SolarCell). 
 
-I sandwiched the Peltier between two heat sinks each with a fan and a thermistor embedded inside the heat sink. Each H-bridge can supply $2A$ and the Peltier can handle a max of $6A,$ so we can run them together. The full-bridge leads were shorted together and routed as in the schematic below. 
+I sandwiched the Peltier between two heat sinks each with a fan and a thermistor embedded inside the heat sink. Each H-bridge can supply $2A$ for a maximum current of $4A$ and the Peltier can handle up to $6A,$ so we can run them together. The full-bridge leads were shorted together and routed as in the schematic below. 
 
 ![FullBridgeWiring](https://github.com/user-attachments/assets/284014e7-fa30-48dc-9757-453fe9333bf5)
 
@@ -23,6 +23,18 @@ At all times, the enables are kept at logic high. Doing so results in the follow
 | 1      | 0      || 1       | 0       || Normal (Cooling)  |
 | 1      | 1      || 1       | 1       || Error             |
 ```
+
+When the current is directed to run in cooling mode, the duty cycle of the PWM is equivalent to the percent of maximum current supplied to the Peltier. So a duty cycle of 75% will supply $0.75*2*2A=3A$ of current. When the inputs are changed to reverse the current direction to instead heat the Peltier, the current supplied is proportional to $1-duty cycle$, so a duty cycle of 25% will supply $(1-0.25)*2*2A=3A.$ Therefore the PWM duty cycle is the PID control variable since we can easily change its value, and it controls the system temperature i.e. the process variable. 
+
+A note of caution: while the Peltier can safley handle the $4A$ maximum current, at this current the heat sink on the L298 rapidly gets too hot to touch, even when a cooling fan was placed on it. While a more rigorous solution would be to attach a thermistor and interlock to the heat sink, I determined through trial and error that the heat sink remains at a reasonably cool temperature when the system is run indefinitley at $3A.$ Therefore my PID controller has a cap ensuring that the PWM never exceeds 75% duty cycle in cooling mode or drops below 25% in heating mode. 
+'''c
+if (Regs.s32[RegPeltierPidMv] > pwmCcrMaxCool) {		
+	pwmCcr = pwmCcrMaxCool;										//Maximum allowed cooling. By default, pwmCcrMaxCool=0.75*0xFFFF
+}
+else {
+	pwmCcr = (uint16_t) Regs.s32[RegPeltierPidMv];				//Partial cooling
+}
+'''
 
 
 ## Data and Analysis
