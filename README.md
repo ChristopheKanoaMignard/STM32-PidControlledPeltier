@@ -8,11 +8,11 @@ I will tune the three parameters through trial and error to find a combination t
 
 ## Hardware
 
-The microcontroller used for this project was an STM32F429I, the Peltier was a TEC1-12706 and its driver was an L298 dual full-bridge, and the various temperature sensors were hand-made using NTC thermistors in a voltage divider (the same as in my solar cell project: see [here] for details). 
+The microcontroller used for this project was an STM32F429I, the Peltier was a TEC1-12706 and its driver was an L298 dual full-bridge, and the various temperature sensors were hand-made using NTC thermistors in a voltage divider (the same as in my solar cell project: https://github.com/ChristopheKanoaMignard/STM32-SolarCell). 
 
-I sandwiched the Peltier between two heat sinks each with a fan and a thermistor embedded inside the heat sink. Each H-bridge can supply $2A$ and the Peltier can handle a max of $6A,$ so we can run them together. The full-bridge leads were shorted together and routed as in the schematic below.
+I sandwiched the Peltier between two heat sinks each with a fan and a thermistor embedded inside the heat sink. Each H-bridge can supply $2A$ and the Peltier can handle a max of $6A,$ so we can run them together. The full-bridge leads were shorted together and routed as in the schematic below. 
 
-[Colored schematic]
+![FullBridgeWiring](https://github.com/user-attachments/assets/284014e7-fa30-48dc-9757-453fe9333bf5)
 
 At all times, the enables are kept at logic high. Doing so results in the following truth table.
 ```markdown
@@ -31,13 +31,16 @@ To start tuning the controller, I started with the most basic version. I set $K_
 |:--:| 
 | *Credit: TLK Energy* |
 A small $K_p$ will result in a process value asymptoting before it reaches the SP. Progressivley increasing $K_p$ will cause this gap, or remaining control deviation, to shrink, but a good choice of $K_p$ will never cause the PV to reach the SP. Continuing to increase $K_p$ will produce a curve that overshoots the SP, then oscillates about it. 
-[Kp Tuning]
+![PidController_KpTuning_Ki0_Kd0](https://github.com/user-attachments/assets/b0bc164b-df30-4efb-b162-38ff8d55b7c3)
+
 For my system, any $K_p<500$ doesn't get within $1°C$ of the SP and are clearly too small. $K_p = 500, 1000, 2000$ all get pretty close to the SP, but I chose $K_p = 1000$ as my value moving forward. I probably should have chosen $K_p = 2000$ because there is final peak before it settles down to a constant value, just like in the second image from TLK Energy's blog, whereas the curve for $K_p = 1000$ is a smooth curve throughout even if it approaches nearly the same final value at nearly the same time. 
 ![tlkEnergyBlog_PidTuning_Ki](https://github.com/user-attachments/assets/36ba07ea-01c4-430e-803e-d1f5588b7e9b)
 |:--:| 
 | *Credit: TLK Energy* |
 The TLK blog uses a slightly different formulation of the differentail equation involving $T_I$ in place of $K_i$, but they are simply inversley propotional to each other. So a small $K_i$ will result in a curve that simply looks like a P controller. A good choice will cause PV to slightly overshoot the SP, but then quickly settle down to the SP. A large choice will cause a large overshoot and oscillations about the SP that last for a long time.
-[Ki Tuning]
+
 For my controller, there are actually two integral related terms that need to be adjusted: $K_i$ and $IMax.$ 
+![KiTuning_Kp1000_ISumMax40000_KiVaries](https://github.com/user-attachments/assets/67bebd04-89bb-4870-a13f-fcefd4053b39)
+![KiTuning_Kp1000_ISumMaxVaries_KiConstant](https://github.com/user-attachments/assets/1c227ea7-4b88-415f-a26f-ad8a1e5cbf2e)
 
 ## Program Features and File Structure
