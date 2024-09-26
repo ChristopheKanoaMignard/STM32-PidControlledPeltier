@@ -27,7 +27,7 @@ At all times, the enables are kept at logic high. Doing so results in the follow
 When the current is directed to run in cooling mode, the duty cycle of the PWM is equivalent to the percent of maximum current supplied to the Peltier. So a duty cycle of 75% will supply $0.75*2*2A=3A$ of current. When the inputs are changed to reverse the current direction to instead heat the Peltier, the current supplied is proportional to $1-duty cycle$, so a duty cycle of 25% will supply $(1-0.25)*2*2A=3A.$ Therefore the PWM duty cycle is the PID control variable since we can easily change its value, and it controls the system temperature i.e. the process variable. 
 
 A note of caution: while the Peltier can safley handle the $4A$ maximum current, at this current the heat sink on the L298 rapidly gets too hot to touch, even when a cooling fan was placed on it. While a more rigorous solution would be to attach a thermistor and interlock to the heat sink, I determined through trial and error that the heat sink remains at a reasonably cool temperature when the system is run indefinitley at $3A.$ Therefore my PID controller has a cap ensuring that the PWM never exceeds 75% duty cycle in cooling mode or drops below 25% in heating mode. 
-'''c
+'''ruby
 if (Regs.s32[RegPeltierPidMv] > pwmCcrMaxCool) {		
 	pwmCcr = pwmCcrMaxCool;										//Maximum allowed cooling. By default, pwmCcrMaxCool=0.75*0xFFFF
 }
